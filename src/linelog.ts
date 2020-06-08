@@ -223,7 +223,6 @@ export class LineLog {
     public recordText(text: string, timestamp: null | number = null) {
         let a = this.content;
         let b = text;
-        if (!b.endsWith("\n")) { b += "\n"; }
         if (a === b) {
             return;
         }

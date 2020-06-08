@@ -40,7 +40,7 @@ describe('LineLog', () => {
         let log = new LineLog;
         log.recordText("c\nd\ne", 42);
         assert.equal(log.maxRev, 1);
-        assert.equal(log.content, "c\nd\ne\n");
+        assert.equal(log.content, "c\nd\ne");
         assert.equal(log.getLineTimestamp(0), 42);
         assert.equal(log.getLineTimestamp(1), 42);
         assert.equal(log.getLineTimestamp(2), 42);
