@@ -79,20 +79,21 @@ class LineLog {
         this.lastCheckoutRev = rev;
         // NOTE: this.content is not updated here. It should be updated by the call-site.
     }
-    execute(startRev, endRev, present) {
+    execute(startRev, endRev, present = null) {
         let rev = endRev;
         let lines = [];
         let pc = 0;
         let patience = this.code.length * 2;
+        let deleted = present === null ? ((pc) => false) : (pc) => !present[pc];
         while (patience > 0) {
             let code = this.code[pc];
             switch (code.op) {
                 case Op.END:
-                    lines.push({ data: "", rev: 0, pc, deleted: !present[pc] });
+                    lines.push({ data: "", rev: 0, pc, deleted: deleted(pc) });
                     patience = -1;
                     break;
                 case Op.LINE:
-                    lines.push({ data: code.data, rev: code.rev, pc, deleted: !present[pc] });
+                    lines.push({ data: code.data, rev: code.rev, pc, deleted: deleted(pc) });
                     pc += 1;
                     break;
                 case Op.J:
@@ -132,7 +133,7 @@ class LineLog {
         else {
             this.lastCheckoutRev = rev;
         }
-        let lines = this.execute(rev, rev, {});
+        let lines = this.execute(rev, rev);
         if (start !== null) {
             // Checkout a range, including deleted revs.
             let present = {};
