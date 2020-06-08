@@ -36,7 +36,7 @@ describe('LineLog', () => {
         let log = new linelog_1.LineLog;
         log.recordText("c\nd\ne", 42);
         assert.equal(log.maxRev, 1);
-        assert.equal(log.content, "c\nd\ne\n");
+        assert.equal(log.content, "c\nd\ne");
         assert.equal(log.getLineTimestamp(0), 42);
         assert.equal(log.getLineTimestamp(1), 42);
         assert.equal(log.getLineTimestamp(2), 42);
@@ -64,6 +64,28 @@ describe('LineLog', () => {
         assert.equal(log.getLineTimestamp(0), 0);
         log.checkOut(2);
         assert.equal(log.content, "d\ne\nf\n");
+    });
+    it('checkout range', () => {
+        let log = new linelog_1.LineLog;
+        log.recordText("c\nd\ne\n", 42);
+        log.recordText("d\ne\nf\n", 52);
+        log.recordText("e\ng\nf\n", 62);
+        log.checkOut(2, 1);
+        assert.equal(log.content, "c\nd\ne\nf\n");
+        assert(log.lines[0].deleted); // 'c' not in rev 2
+        assert(!log.lines[1].deleted); // 'd' in rev 2
+        assert(!log.lines[2].deleted);
+        assert(!log.lines[3].deleted);
+        log.checkOut(3, 0);
+        assert.equal(log.content, "c\nd\ne\ng\nf\n");
+        assert(log.lines[0].deleted); // 'c' not in rev 3
+        assert(log.lines[1].deleted); // 'd' not in rev 3
+        assert(!log.lines[2].deleted); // 'e' in rev 3
+        log.checkOut(3, 2);
+        assert.equal(log.content, "d\ne\ng\nf\n");
+        assert(log.lines[0].deleted); // 'd' not in rev 3
+        assert(!log.lines[1].deleted); // 'e' in rev 3
+        assert(!log.lines[3].deleted); // 'f' in rev 3
     });
     it('serialize', () => {
         let log = new linelog_1.LineLog;

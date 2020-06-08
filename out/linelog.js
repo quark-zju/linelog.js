@@ -44,7 +44,6 @@ class LineLog {
         this.lastCheckoutRev = -1;
         this.lines = [];
         this.content = "";
-        this.path = "";
         this.checkOut(0);
     }
     editChunk(a1, a2, rev, lines) {
@@ -72,7 +71,7 @@ class LineLog {
             default: this.code.push({ op: Op.J, pc: a1Pc + 1 });
         }
         this.code[a1Pc] = { op: Op.J, pc: start };
-        let newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i }; });
+        let newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i, deleted: false }; });
         this.lines.splice(a1, a2 - a1, ...newLines);
         if (rev > this.maxRev) {
             this.maxRev = rev;
@@ -80,14 +79,8 @@ class LineLog {
         this.lastCheckoutRev = rev;
         // NOTE: this.content is not updated here. It should be updated by the call-site.
     }
-    checkOut(rev) {
-        rev = Math.min(rev, this.maxRev);
-        if (rev === this.lastCheckoutRev) {
-            return;
-        }
-        else {
-            this.lastCheckoutRev = rev;
-        }
+    execute(startRev, endRev, present) {
+        let rev = endRev;
         let lines = [];
         let pc = 0;
         let patience = this.code.length * 2;
@@ -95,18 +88,18 @@ class LineLog {
             let code = this.code[pc];
             switch (code.op) {
                 case Op.END:
-                    lines.push({ data: "", rev: 0, pc });
+                    lines.push({ data: "", rev: 0, pc, deleted: !present[pc] });
                     patience = -1;
                     break;
                 case Op.LINE:
-                    lines.push({ data: code.data, rev: code.rev, pc });
+                    lines.push({ data: code.data, rev: code.rev, pc, deleted: !present[pc] });
                     pc += 1;
                     break;
                 case Op.J:
                     pc = code.pc;
                     break;
                 case Op.JGE:
-                    if (rev >= code.rev) {
+                    if (startRev >= code.rev) {
                         pc = code.pc;
                     }
                     else {
@@ -129,6 +122,24 @@ class LineLog {
         if (patience === 0) {
             assert(false, "bug: code does not end in time");
         }
+        return lines;
+    }
+    checkOut(rev, start = null) {
+        rev = Math.min(rev, this.maxRev);
+        if (rev === this.lastCheckoutRev && start === null) {
+            return;
+        }
+        else {
+            this.lastCheckoutRev = rev;
+        }
+        let lines = this.execute(rev, rev, {});
+        if (start !== null) {
+            // Checkout a range, including deleted revs.
+            let present = {};
+            lines.forEach((l) => { present[l.pc] = true; });
+            // Go through all lines again. But do not skip chunks.
+            lines = this.execute(start, rev, present);
+        }
         this.lines = lines;
         this.content = this.reconstructContent();
     }
@@ -148,9 +159,6 @@ class LineLog {
     recordText(text, timestamp = null) {
         let a = this.content;
         let b = text;
-        if (!b.endsWith("\n")) {
-            b += "\n";
-        }
         if (a === b) {
             return;
         }
