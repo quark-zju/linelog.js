@@ -45,6 +45,7 @@ describe('LineLog', () => {
         assert.equal(log.getLineTimestamp(1), 42);
         assert.equal(log.getLineTimestamp(2), 42);
         assert.equal(log.getLineTimestamp(3), 0); // out of range
+        assert.equal(log.lines[0].deleted, false);
     });
 
     it('multiple edits', () => {
@@ -57,6 +58,8 @@ describe('LineLog', () => {
         assert.equal(log.getLineTimestamp(1), 42);
         assert.equal(log.getLineTimestamp(2), 52);
         assert.equal(log.getLineTimestamp(3), 0); // out of range
+        assert.equal(log.lines[0].deleted, false);
+        assert.equal(log.lines[2].deleted, false);
     });
 
     it('checkout', () => {
@@ -66,10 +69,12 @@ describe('LineLog', () => {
         log.checkOut(1);
         assert.equal(log.content, "c\nd\ne\n");
         log.checkOut(0);
+        assert.equal(log.lines[0].deleted, false);
         assert.equal(log.content, "");
         assert.equal(log.getLineTimestamp(0), 0);
         log.checkOut(2);
         assert.equal(log.content, "d\ne\nf\n");
+        assert.equal(log.lines[2].deleted, false);
     });
 
     it('checkout range', () => {

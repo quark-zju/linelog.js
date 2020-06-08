@@ -136,20 +136,21 @@ export class LineLog {
         // NOTE: this.content is not updated here. It should be updated by the call-site.
     }
 
-    private execute(startRev: Rev, endRev: Rev, present: { [pc: number]: boolean }): LineInfo[] {
+    private execute(startRev: Rev, endRev: Rev, present: { [pc: number]: boolean } | null = null): LineInfo[] {
         let rev = endRev;
         let lines: LineInfo[] = [];
         let pc = 0;
         let patience = this.code.length * 2;
+        let deleted = present === null ? ((pc: Pc) => false) : (pc: Pc) => !present[pc];
         while (patience > 0) {
             let code = this.code[pc];
             switch (code.op) {
                 case Op.END:
-                    lines.push({ data: "", rev: 0, pc, deleted: !present[pc] });
+                    lines.push({ data: "", rev: 0, pc, deleted: deleted(pc) });
                     patience = -1;
                     break;
                 case Op.LINE:
-                    lines.push({ data: code.data, rev: code.rev, pc, deleted: !present[pc] });
+                    lines.push({ data: code.data, rev: code.rev, pc, deleted: deleted(pc) });
                     pc += 1;
                     break;
                 case Op.J:
@@ -188,7 +189,7 @@ export class LineLog {
             this.lastCheckoutRev = rev;
         }
 
-        let lines = this.execute(rev, rev, {});
+        let lines = this.execute(rev, rev);
         if (start !== null) {
             // Checkout a range, including deleted revs.
             let present: { [key: number]: boolean } = {};
