@@ -1,6 +1,6 @@
 {
 	"name": "linelog",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Data structure tracking changes to a text file over time.",
 	"categories": [
 		"Other"
@@ -16,6 +16,7 @@
 		"url": "https://github.com/quark-zju/linelog.js"
 	},
 	"license": "MIT",
+	"types": "src/linelog.ts",
 	"scripts": {
 		"compile": "tsc -p ./",
 		"lint": "eslint src --ext ts",
