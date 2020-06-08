@@ -1,6 +1,6 @@
 {
 	"name": "linelog",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Data structure tracking changes to a text file over time.",
 	"categories": [
 		"Other"
@@ -38,7 +38,6 @@
 		"typescript": "^3.8.3"
 	},
 	"dependencies": {
-		"diff-match-patch": "^1.0.5",
-		"mkdirp": "^1.0.4"
+		"diff-match-patch": "^1.0.5"
 	}
 }
