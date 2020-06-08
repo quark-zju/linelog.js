@@ -72,6 +72,7 @@ interface LineInfo {
     data: string;
     rev: Rev;
     pc: Pc;
+    deleted: boolean;
 }
 
 interface TimestampMap {
@@ -82,9 +83,7 @@ export class LineLog {
     // core state
     private code: Inst[];
     // rev -> timestamp map
-    private tsMap: TimestampMap;
-    // filesystem path
-    private path: string;
+    tsMap: TimestampMap;
 
     // cached states
     maxRev: Rev;
@@ -99,7 +98,6 @@ export class LineLog {
         this.lastCheckoutRev = -1;
         this.lines = [];
         this.content = "";
-        this.path = "";
         this.checkOut(0);
     }
 
@@ -129,7 +127,7 @@ export class LineLog {
         }
         this.code[a1Pc] = { op: Op.J, pc: start };
 
-        let newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i }; });
+        let newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i, deleted: false }; });
         this.lines.splice(a1, a2 - a1, ...newLines);
         if (rev > this.maxRev) {
             this.maxRev = rev;
@@ -138,14 +136,8 @@ export class LineLog {
         // NOTE: this.content is not updated here. It should be updated by the call-site.
     }
 
-    public checkOut(rev: Rev) {
-        rev = Math.min(rev, this.maxRev);
-        if (rev === this.lastCheckoutRev) {
-            return;
-        } else {
-            this.lastCheckoutRev = rev;
-        }
-
+    private execute(startRev: Rev, endRev: Rev, present: { [pc: number]: boolean }): LineInfo[] {
+        let rev = endRev;
         let lines: LineInfo[] = [];
         let pc = 0;
         let patience = this.code.length * 2;
@@ -153,18 +145,18 @@ export class LineLog {
             let code = this.code[pc];
             switch (code.op) {
                 case Op.END:
-                    lines.push({ data: "", rev: 0, pc });
+                    lines.push({ data: "", rev: 0, pc, deleted: !present[pc] });
                     patience = -1;
                     break;
                 case Op.LINE:
-                    lines.push({ data: code.data, rev: code.rev, pc });
+                    lines.push({ data: code.data, rev: code.rev, pc, deleted: !present[pc] });
                     pc += 1;
                     break;
                 case Op.J:
                     pc = code.pc;
                     break;
                 case Op.JGE:
-                    if (rev >= code.rev) {
+                    if (startRev >= code.rev) {
                         pc = code.pc;
                     } else {
                         pc += 1;
@@ -185,6 +177,27 @@ export class LineLog {
         if (patience === 0) {
             assert(false, "bug: code does not end in time");
         }
+        return lines;
+    }
+
+    public checkOut(rev: Rev, start: Rev | null = null) {
+        rev = Math.min(rev, this.maxRev);
+        if (rev === this.lastCheckoutRev && start === null) {
+            return;
+        } else {
+            this.lastCheckoutRev = rev;
+        }
+
+        let lines = this.execute(rev, rev, {});
+        if (start !== null) {
+            // Checkout a range, including deleted revs.
+            let present: { [key: number]: boolean } = {};
+            lines.forEach((l) => { present[l.pc] = true; });
+
+            // Go through all lines again. But do not skip chunks.
+            lines = this.execute(start, rev, present);
+        }
+
         this.lines = lines;
         this.content = this.reconstructContent();
     }
