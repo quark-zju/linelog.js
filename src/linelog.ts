@@ -76,7 +76,7 @@ interface LineInfo {
 }
 
 interface TimestampMap {
-    [rev: number]: number;
+    [rev: number]: number | string;
 }
 
 export class LineLog {
@@ -221,7 +221,7 @@ export class LineLog {
         this.checkOut(this.maxRev);
     }
 
-    public recordText(text: string, timestamp: null | number = null) {
+    public recordText(text: string, timestamp: null | number | string = null) {
         let a = this.content;
         let b = text;
         if (a === b) {
@@ -262,7 +262,7 @@ export class LineLog {
         // assert(this.reconstructContent() === b, "bug: text does not match");
     }
 
-    public getLineTimestamp(i: LineIdx): number {
+    public getLineTimestamp(i: LineIdx): number | string {
         if (i >= this.lines.length - 1) {
             return 0;
         } else {
