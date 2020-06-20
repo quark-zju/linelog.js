@@ -76,7 +76,11 @@ interface LineInfo {
 }
 
 interface TimestampMap {
-    [rev: number]: number | string;
+    [rev: number]: number;
+}
+
+interface ExtraMap {
+    [rev: number]: object;
 }
 
 export class LineLog {
@@ -84,6 +88,8 @@ export class LineLog {
     private code: Inst[];
     // rev -> timestamp map
     tsMap: TimestampMap;
+    // rev -> object map
+    extraMap: ExtraMap;
 
     // cached states
     maxRev: Rev;
@@ -94,6 +100,7 @@ export class LineLog {
     constructor() {
         this.code = [{ op: Op.END }];
         this.tsMap = {};
+        this.extraMap = {};
         this.maxRev = 0;
         this.lastCheckoutRev = -1;
         this.lines = [];
@@ -208,24 +215,26 @@ export class LineLog {
     }
 
     public export(): Buffer {
-        return zlib.gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap }));
+        return zlib.gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap, extraMap: this.extraMap }));
     }
 
     public import(buf: Buffer) {
-        let { code, tsMap } = JSON.parse(zlib.gunzipSync(buf).toString());
+        let obj = JSON.parse(zlib.gunzipSync(buf).toString());
+        let { code, tsMap, extraMap } = obj;
         this.code = code;
-        this.tsMap = tsMap;
+        this.tsMap = tsMap || {};
+        this.extraMap = extraMap || {};
         this.maxRev = Math.max(0, ...this.code.map((c) =>
             (c.op === Op.JGE || c.op === Op.JL) ? c.rev : 0
         ));
         this.checkOut(this.maxRev);
     }
 
-    public recordText(text: string, timestamp: null | number | string = null) {
+    public recordText(text: string, timestamp: null | number = null, extra: null | object = null): Rev {
         let a = this.content;
         let b = text;
         if (a === b) {
-            return;
+            return this.maxRev;
         }
         let lines = splitLines(b);
         this.checkOut(this.maxRev);
@@ -247,27 +256,39 @@ export class LineLog {
                     assert(false, "bug: inconsistent op");
                 }
                 this.content = b;
-                return;
+                return rev;
             }
         }
 
         // Non-trivial change.
         let rev = this.maxRev + 1;
         this.tsMap[rev] = ts;
+        if (extra) {
+            this.extraMap[rev] = extra;
+        }
         blocks.reverse().forEach(([a1, a2, b1, b2]) => {
             this.editChunk(a1, a2, rev, lines.slice(b1, b2));
         });
         this.content = b;
 
         // assert(this.reconstructContent() === b, "bug: text does not match");
+        return rev;
     }
 
-    public getLineTimestamp(i: LineIdx): number | string {
+    public getLineTimestamp(i: LineIdx): number {
         if (i >= this.lines.length - 1) {
             return 0;
         } else {
             let ts = this.tsMap[this.lines[i].rev];
             return ts;
+        }
+    }
+
+    public getLineExtra(i: LineIdx): object {
+        if (i >= this.lines.length - 1) {
+            return {};
+        } else {
+            return this.extraMap[this.lines[i].rev] || {};
         }
     }
 }
