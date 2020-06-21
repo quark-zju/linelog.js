@@ -158,6 +158,7 @@ if (!process.env.GITHUB_WORKFLOW) {
             assert.equal((b.getLineExtra(1) as git.CommitPathInfo).path, "fixtures/b");
             assert.equal((b.getLineExtra(2) as git.CommitPathInfo).path, "fixtures/a");
             assert.equal((b.getLineExtra(3) as git.CommitPathInfo).commit.timestamp, 1592698681);
+            assert.equal(b.getLineTimestamp(3), 1592698681000);
             b.checkOut(b.maxRev, 0);
             assert.equal(b.content, "3\n4\n5\n5\n6\n7\n7\n8\n");
         });

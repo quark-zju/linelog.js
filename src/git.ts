@@ -25,7 +25,6 @@ SOFTWARE.
 import { LineLog } from './linelog';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { Writable, Readable } from 'stream';
-import { once } from 'events';
 import { Mutex } from 'async-mutex';
 
 interface CommitPath {
@@ -239,7 +238,7 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingC
                 commit: commitInfo,
                 path,
             };
-            log.recordText(text, commitInfo.timestamp, info);
+            log.recordText(text, commitInfo.timestamp * 1000, info);
         }
     } finally {
         reader.cleanUp();
