@@ -22,9 +22,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const linelog_1 = require("./linelog");
+const git = require("./git");
 const assert = require("assert");
+const path_1 = require("path");
+const root = path_1.dirname(__dirname);
 require('source-map-support').install();
 describe('LineLog', () => {
     it('empty', () => {
@@ -95,7 +107,7 @@ describe('LineLog', () => {
     it('serialize', () => {
         let log = new linelog_1.LineLog;
         log.recordText("c\nd\ne\n", 42);
-        log.recordText("d\ne\nf\n", 52);
+        log.recordText("d\ne\nf\n", 52, { "foo": "bar" });
         let bytes = log.export();
         let log2 = new linelog_1.LineLog;
         log2.import(bytes);
@@ -105,8 +117,45 @@ describe('LineLog', () => {
             assert.equal(log2.content, log.content);
             [0, 1, 2, 3].forEach((line) => {
                 assert.equal(log2.getLineTimestamp(line), log2.getLineTimestamp(line));
+                assert.deepEqual(log2.getLineExtra(line), log2.getLineExtra(line));
             });
         });
     });
+});
+describe('GitObjectReader', () => {
+    let reader = new git.GitObjectReader(root);
+    it('raises on missing objects', () => __awaiter(void 0, void 0, void 0, function* () {
+        assert.rejects(() => __awaiter(void 0, void 0, void 0, function* () { return yield reader.getCommit("ee5d18cd8203abb02cc559a9af601b4fbab58911"); }), /missing/);
+    }));
+    it('reads commits', () => __awaiter(void 0, void 0, void 0, function* () {
+        let commit = yield reader.getCommit("ee5d18cd8203abb02cc559a9af601b4fbab58910");
+        assert.equal(commit.author.split(" <")[0], "Jun Wu");
+        assert.equal(commit.timestamp, 1591577310);
+        assert.equal(commit.message, "Add README");
+    }));
+    it('reads files', () => __awaiter(void 0, void 0, void 0, function* () {
+        let content = yield reader.catFile("94fbc0acec88bdfc08b751aee74043de124582a1", ".gitignore");
+        assert.equal(content, ".vscode\r\nnode_modules\r\n");
+        content = yield reader.catFile("ef99d08bf2bdf5ee3976b0ec0621b4214a568337", "fixtures/a");
+        assert.equal(content, "5\n6\n7\n");
+    }));
+});
+describe("Git -> LineLog", () => {
+    it('imports files', () => __awaiter(void 0, void 0, void 0, function* () {
+        let b = yield git.buildLineLogFromGitHistory(root, "fixtures/b");
+        assert.equal(b.content, "3\n5\n6\n7\n");
+        assert.equal(b.getLineExtra(0).commit.message, "Edit fixtures/a");
+        assert.equal(b.getLineExtra(1).path, "fixtures/b");
+        assert.equal(b.getLineExtra(2).path, "fixtures/a");
+        assert.equal(b.getLineExtra(3).commit.timestamp, 1592698681);
+        b.checkOut(b.maxRev, 0);
+        assert.equal(b.content, "3\n4\n5\n5\n6\n7\n7\n8\n");
+    }));
+    it('imports older files', () => __awaiter(void 0, void 0, void 0, function* () {
+        let a = yield git.buildLineLogFromGitHistory(root, "fixtures/a", "a9ad1ca55280cea0f1109899d37d0cbb9b3efc1e");
+        assert.equal(a.content, "3\n6\n7\n8\n");
+        a.checkOut(a.maxRev, 0);
+        assert.equal(a.content, "3\n4\n5\n6\n7\n7\n8\n");
+    }));
 });
 //# sourceMappingURL=tests.js.map

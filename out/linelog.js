@@ -23,10 +23,12 @@ SOFTWARE.
 
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LineLog = void 0;
+exports.LineLog = exports.git = void 0;
 const assert = require("assert");
 const zlib = require("zlib");
 const diff_match_patch = require("diff-match-patch");
+const git = require("./git");
+exports.git = git;
 let dmp = new diff_match_patch.diff_match_patch;
 var Op;
 (function (Op) {
@@ -40,6 +42,7 @@ class LineLog {
     constructor() {
         this.code = [{ op: Op.END }];
         this.tsMap = {};
+        this.extraMap = {};
         this.maxRev = 0;
         this.lastCheckoutRev = -1;
         this.lines = [];
@@ -148,20 +151,22 @@ class LineLog {
         return this.lines.map((l) => l.data).join("");
     }
     export() {
-        return zlib.gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap }));
+        return zlib.gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap, extraMap: this.extraMap }));
     }
     import(buf) {
-        let { code, tsMap } = JSON.parse(zlib.gunzipSync(buf).toString());
+        let obj = JSON.parse(zlib.gunzipSync(buf).toString());
+        let { code, tsMap, extraMap } = obj;
         this.code = code;
-        this.tsMap = tsMap;
+        this.tsMap = tsMap || {};
+        this.extraMap = extraMap || {};
         this.maxRev = Math.max(0, ...this.code.map((c) => (c.op === Op.JGE || c.op === Op.JL) ? c.rev : 0));
         this.checkOut(this.maxRev);
     }
-    recordText(text, timestamp = null) {
+    recordText(text, timestamp = null, extra = null) {
         let a = this.content;
         let b = text;
         if (a === b) {
-            return;
+            return this.maxRev;
         }
         let lines = splitLines(b);
         this.checkOut(this.maxRev);
@@ -183,17 +188,21 @@ class LineLog {
                     assert(false, "bug: inconsistent op");
                 }
                 this.content = b;
-                return;
+                return rev;
             }
         }
         // Non-trivial change.
         let rev = this.maxRev + 1;
         this.tsMap[rev] = ts;
+        if (extra) {
+            this.extraMap[rev] = extra;
+        }
         blocks.reverse().forEach(([a1, a2, b1, b2]) => {
             this.editChunk(a1, a2, rev, lines.slice(b1, b2));
         });
         this.content = b;
         // assert(this.reconstructContent() === b, "bug: text does not match");
+        return rev;
     }
     getLineTimestamp(i) {
         if (i >= this.lines.length - 1) {
@@ -202,6 +211,14 @@ class LineLog {
         else {
             let ts = this.tsMap[this.lines[i].rev];
             return ts;
+        }
+    }
+    getLineExtra(i) {
+        if (i >= this.lines.length - 1) {
+            return {};
+        }
+        else {
+            return this.extraMap[this.lines[i].rev] || {};
         }
     }
 }
