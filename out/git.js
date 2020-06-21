@@ -238,7 +238,7 @@ let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awa
                 commit: commitInfo,
                 path,
             };
-            log.recordText(text, commitInfo.timestamp, info);
+            log.recordText(text, commitInfo.timestamp * 1000, info);
         }
     }
     finally {
@@ -248,22 +248,26 @@ let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awa
 });
 exports.buildLineLogFromGitHistory = buildLineLogFromGitHistory;
 // Run git process capture its output.
-let runGit = (args) => __awaiter(void 0, void 0, void 0, function* () {
+let runGit = (args, options = null) => __awaiter(void 0, void 0, void 0, function* () {
     var e_1, _a;
-    let git = child_process_1.spawn("git", args, { stdio: ["ignore", "pipe", "ignore"] });
+    let opts = options || {};
+    opts.stdio = ["ignore", "pipe", "ignore"];
+    let git = child_process_1.spawn("git", args, opts);
     let data = "";
-    try {
-        for (var _b = __asyncValues(git.stdout), _c; _c = yield _b.next(), !_c.done;) {
-            const chunk = _c.value;
-            data += chunk;
-        }
-    }
-    catch (e_1_1) { e_1 = { error: e_1_1 }; }
-    finally {
+    if (git.stdout !== null) {
         try {
-            if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+            for (var _b = __asyncValues(git.stdout), _c; _c = yield _b.next(), !_c.done;) {
+                const chunk = _c.value;
+                data += chunk;
+            }
         }
-        finally { if (e_1) throw e_1.error; }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
     }
     const exitCode = yield new Promise((resolve, reject) => {
         git.on("exit", resolve);
