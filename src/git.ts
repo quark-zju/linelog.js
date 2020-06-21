@@ -44,19 +44,35 @@ interface CommitPathInfo {
     path: string,
 }
 
+interface LogOptions {
+    followRenames: boolean | null;
+    firstParent: boolean | null;
+    startingCommit: string | null;
+}
+
+const kDefaultLogOptions: LogOptions = {
+    followRenames: true,
+    firstParent: true,
+    startingCommit: null,
+};
+
 // Log history of a file.
-let logFile = async (gitRoot: string, path: string, startingCommit: string | null = null): Promise<CommitPath[]> => {
+let logFile = async (gitRoot: string, path: string, options: LogOptions = kDefaultLogOptions): Promise<CommitPath[]> => {
     let args = [
         `--git-dir=${gitRoot}/.git`,
         "log",
-        "--first-parent",
         "--topo-order",
         "--format=format:%H",
         "--name-only",
-        "--follow",
     ];
-    if (startingCommit) {
-        args.push(startingCommit);
+    if (options.firstParent) {
+        args.push("--first-parent");
+    }
+    if (options.followRenames) {
+        args.push("--follow");
+    }
+    if (options.startingCommit) {
+        args.push(options.startingCommit);
     }
     args = args.concat(["--", path]);
     let logOutput = await runGit(args);
@@ -228,7 +244,33 @@ interface WithProcessCallback<T> {
 // Import Git history of a file to a LineLog.
 let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingCommit: null | string = null): Promise<LineLog> => {
     let log = new LineLog();
-    let history = await logFile(gitRoot, path, startingCommit);
+    let options = { ...kDefaultLogOptions, startingCommit };
+    let history = await logFile(gitRoot, path, options);
+    if (history.length === 0) {
+        // Sometimes the history is empty with --follow and --first-parent.
+        // Likely a bug in git. For now let's just workaround it by logging
+        // again.
+        options.firstParent = false;
+        options.followRenames = true;
+        console.log("try again 1");
+        history = await logFile(gitRoot, path, options);
+    }
+    if (history.length === 0) {
+        // I don't know if this can happen. But let's try disabling
+        // followRenames.
+        options.firstParent = true;
+        options.followRenames = false;
+        console.log("try again 2");
+        history = await logFile(gitRoot, path, options);
+    }
+    if (history.length === 0) {
+        // I don't know if this can happen. But let's try the default `git log`
+        // options.
+        options.firstParent = false;
+        options.followRenames = false;
+        console.log("try again 3");
+        history = await logFile(gitRoot, path, options);
+    }
     let reader = new GitObjectReader(gitRoot);
     try {
         for (const { commit, path } of history.reverse()) {
@@ -268,4 +310,12 @@ let runGit = async (args: string[], options: SpawnOptions | null = null): Promis
     }
 };
 
-export { buildLineLogFromGitHistory, logFile, runGit, CommitPathInfo, CommitInfo, GitObjectReader };
+export {
+    buildLineLogFromGitHistory,
+    logFile,
+    runGit,
+    kDefaultLogOptions,
+    CommitPathInfo,
+    CommitInfo,
+    GitObjectReader
+};
