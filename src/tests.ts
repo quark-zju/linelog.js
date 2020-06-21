@@ -106,7 +106,7 @@ describe('LineLog', () => {
     it('serialize', () => {
         let log = new LineLog;
         log.recordText("c\nd\ne\n", 42);
-        log.recordText("d\ne\nf\n", 52);
+        log.recordText("d\ne\nf\n", 52, {"foo": "bar"});
         let bytes = log.export();
         let log2 = new LineLog;
         log2.import(bytes);
@@ -116,6 +116,7 @@ describe('LineLog', () => {
             assert.equal(log2.content, log.content);
             [0, 1, 2, 3].forEach((line) => {
                 assert.equal(log2.getLineTimestamp(line), log2.getLineTimestamp(line));
+                assert.deepEqual(log2.getLineExtra(line), log2.getLineExtra(line));
             });
         });
     });
