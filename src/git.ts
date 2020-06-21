@@ -247,11 +247,15 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingC
 };
 
 // Run git process capture its output.
-let runGit = async (args: string[]): Promise<string> => {
-    let git = spawn("git", args, { stdio: ["ignore", "pipe", "ignore"] });
+let runGit = async (args: string[], options: SpawnOptions | null = null): Promise<string> => {
+    let opts = options || {};
+    opts.stdio = ["ignore", "pipe", "ignore"];
+    let git = spawn("git", args, opts);
     let data = "";
-    for await (const chunk of git.stdout) {
-        data += chunk;
+    if (git.stdout !== null) {
+        for await (const chunk of git.stdout) {
+            data += chunk;
+        }
     }
     const exitCode = await new Promise((resolve, reject) => {
         git.on("exit", resolve);
