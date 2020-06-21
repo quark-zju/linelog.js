@@ -39,10 +39,9 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GitObjectReader = exports.buildLineLogFromGitHistory = void 0;
+exports.GitObjectReader = exports.runGit = exports.logFile = exports.buildLineLogFromGitHistory = void 0;
 const linelog_1 = require("./linelog");
 const child_process_1 = require("child_process");
-const events_1 = require("events");
 const async_mutex_1 = require("async-mutex");
 ;
 // Log history of a file.
@@ -89,6 +88,7 @@ let logFile = (gitRoot, path, startingCommit = null) => __awaiter(void 0, void 0
     }
     return result;
 });
+exports.logFile = logFile;
 // Read git object via `git cat-file --batch`.
 class GitObjectReader {
     constructor(root) {
@@ -247,19 +247,6 @@ let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awa
     return log;
 });
 exports.buildLineLogFromGitHistory = buildLineLogFromGitHistory;
-// Make node.js stream.write easier to use.
-let write = (stream, data) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!stream.write(data)) {
-        if (stream.destroyed) {
-            throw new Error('premature close');
-        }
-        yield Promise.race([
-            events_1.once(stream, 'drain').then(),
-            events_1.once(stream, 'close')
-                .then(() => Promise.reject(new Error('premature close')))
-        ]);
-    }
-});
 // Run git process capture its output.
 let runGit = (args) => __awaiter(void 0, void 0, void 0, function* () {
     var e_1, _a;
@@ -289,4 +276,5 @@ let runGit = (args) => __awaiter(void 0, void 0, void 0, function* () {
         throw new Error(`git ${args.join(" ")} exited with ${exitCode}`);
     }
 });
+exports.runGit = runGit;
 //# sourceMappingURL=git.js.map
