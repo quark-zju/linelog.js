@@ -23,7 +23,10 @@ SOFTWARE.
 */
 
 import { LineLog } from './linelog';
+import * as git from './git';
 import * as assert from 'assert';
+import { dirname } from 'path';
+const root = dirname(__dirname);
 
 
 require('source-map-support').install();
@@ -119,5 +122,47 @@ describe('LineLog', () => {
                 assert.deepEqual(log2.getLineExtra(line), log2.getLineExtra(line));
             });
         });
+    });
+});
+
+describe('GitObjectReader', () => {
+    let reader = new git.GitObjectReader(root);
+
+    it('raises on missing objects', async () => {
+        assert.rejects(async () => await reader.getCommit("ee5d18cd8203abb02cc559a9af601b4fbab58911"), /missing/);
+    });
+
+    it('reads commits', async () => {
+        let commit = await reader.getCommit("ee5d18cd8203abb02cc559a9af601b4fbab58910");
+        assert.equal(commit.author.split(" <")[0], "Jun Wu");
+        assert.equal(commit.timestamp, 1591577310);
+        assert.equal(commit.message, "Add README");
+    });
+
+    it('reads files', async () => {
+        let content = await reader.catFile("94fbc0acec88bdfc08b751aee74043de124582a1", ".gitignore");
+        assert.equal(content, ".vscode\r\nnode_modules\r\n");
+        content = await reader.catFile("ef99d08bf2bdf5ee3976b0ec0621b4214a568337", "fixtures/a");
+        assert.equal(content, "5\n6\n7\n");
+    });
+});
+
+describe("Git -> LineLog", () => {
+    it('imports files', async () => {
+        let b = await git.buildLineLogFromGitHistory(root, "fixtures/b");
+        assert.equal(b.content, "3\n5\n6\n7\n");
+        assert.equal((b.getLineExtra(0) as git.CommitPathInfo).commit.message, "Edit fixtures/a");
+        assert.equal((b.getLineExtra(1) as git.CommitPathInfo).path, "fixtures/b");
+        assert.equal((b.getLineExtra(2) as git.CommitPathInfo).path, "fixtures/a");
+        assert.equal((b.getLineExtra(3) as git.CommitPathInfo).commit.timestamp, 1592698681);
+        b.checkOut(b.maxRev, 0);
+        assert.equal(b.content, "3\n4\n5\n5\n6\n7\n7\n8\n");
+    });
+
+    it('imports older files', async () => {
+        let a = await git.buildLineLogFromGitHistory(root, "fixtures/a", "a9ad1ca55280cea0f1109899d37d0cbb9b3efc1e");
+        assert.equal(a.content, "3\n6\n7\n8\n");
+        a.checkOut(a.maxRev, 0);
+        assert.equal(a.content, "3\n4\n5\n6\n7\n7\n8\n");
     });
 });

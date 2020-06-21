@@ -25,6 +25,7 @@ SOFTWARE.
 import * as assert from 'assert';
 import * as zlib from 'zlib';
 import * as diff_match_patch from 'diff-match-patch';
+import * as git from './git';
 
 let dmp = new diff_match_patch.diff_match_patch;
 
@@ -83,7 +84,7 @@ interface ExtraMap {
     [rev: number]: object;
 }
 
-export class LineLog {
+class LineLog {
     // core state
     private code: Inst[];
     // rev -> timestamp map
@@ -335,3 +336,5 @@ function splitLines(s: string): string[] {
     }
     return result;
 };
+
+export { git, LineLog };
