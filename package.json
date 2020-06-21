@@ -1,6 +1,6 @@
 {
 	"name": "linelog",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "Data structure tracking changes to a text file over time.",
 	"categories": [
 		"Other"
