@@ -39,24 +39,34 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GitObjectReader = exports.runGit = exports.logFile = exports.buildLineLogFromGitHistory = void 0;
+exports.GitObjectReader = exports.kDefaultLogOptions = exports.runGit = exports.logFile = exports.buildLineLogFromGitHistory = void 0;
 const linelog_1 = require("./linelog");
 const child_process_1 = require("child_process");
 const async_mutex_1 = require("async-mutex");
 ;
+const kDefaultLogOptions = {
+    followRenames: true,
+    firstParent: true,
+    startingCommit: null,
+};
+exports.kDefaultLogOptions = kDefaultLogOptions;
 // Log history of a file.
-let logFile = (gitRoot, path, startingCommit = null) => __awaiter(void 0, void 0, void 0, function* () {
+let logFile = (gitRoot, path, options = kDefaultLogOptions) => __awaiter(void 0, void 0, void 0, function* () {
     let args = [
         `--git-dir=${gitRoot}/.git`,
         "log",
-        "--first-parent",
         "--topo-order",
         "--format=format:%H",
         "--name-only",
-        "--follow",
     ];
-    if (startingCommit) {
-        args.push(startingCommit);
+    if (options.firstParent) {
+        args.push("--first-parent");
+    }
+    if (options.followRenames) {
+        args.push("--follow");
+    }
+    if (options.startingCommit) {
+        args.push(options.startingCommit);
     }
     args = args.concat(["--", path]);
     let logOutput = yield runGit(args);
@@ -228,7 +238,33 @@ exports.GitObjectReader = GitObjectReader;
 // Import Git history of a file to a LineLog.
 let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awaiter(void 0, void 0, void 0, function* () {
     let log = new linelog_1.LineLog();
-    let history = yield logFile(gitRoot, path, startingCommit);
+    let options = Object.assign(Object.assign({}, kDefaultLogOptions), { startingCommit });
+    let history = yield logFile(gitRoot, path, options);
+    if (history.length === 0) {
+        // Sometimes the history is empty with --follow and --first-parent.
+        // Likely a bug in git. For now let's just workaround it by logging
+        // again.
+        options.firstParent = false;
+        options.followRenames = true;
+        console.log("try again 1");
+        history = yield logFile(gitRoot, path, options);
+    }
+    if (history.length === 0) {
+        // I don't know if this can happen. But let's try disabling
+        // followRenames.
+        options.firstParent = true;
+        options.followRenames = false;
+        console.log("try again 2");
+        history = yield logFile(gitRoot, path, options);
+    }
+    if (history.length === 0) {
+        // I don't know if this can happen. But let's try the default `git log`
+        // options.
+        options.firstParent = false;
+        options.followRenames = false;
+        console.log("try again 3");
+        history = yield logFile(gitRoot, path, options);
+    }
     let reader = new GitObjectReader(gitRoot);
     try {
         for (const { commit, path } of history.reverse()) {
