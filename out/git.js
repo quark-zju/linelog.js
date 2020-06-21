@@ -47,7 +47,6 @@ const async_mutex_1 = require("async-mutex");
 const kDefaultLogOptions = {
     followRenames: true,
     firstParent: true,
-    startingCommit: null,
 };
 exports.kDefaultLogOptions = kDefaultLogOptions;
 // Log history of a file.
@@ -82,12 +81,19 @@ let logFile = (gitRoot, path, options = kDefaultLogOptions) => __awaiter(void 0,
     for (const line of logOutput.split(/\r?\n/)) {
         switch (state) {
             case State.COMMIT:
-                commit = line;
-                state = State.PATH;
+                if (line.length === 40) {
+                    commit = line;
+                    state = State.PATH;
+                }
                 break;
             case State.PATH:
-                result.push({ commit, path: line });
-                state = State.NEWLINE;
+                if (line.length > 0) {
+                    result.push({ commit, path: line });
+                    state = State.NEWLINE;
+                }
+                else {
+                    state = State.COMMIT;
+                }
                 break;
             case State.NEWLINE:
                 if (line === "") {
@@ -236,45 +242,33 @@ class GitObjectReader {
 }
 exports.GitObjectReader = GitObjectReader;
 // Import Git history of a file to a LineLog.
-let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awaiter(void 0, void 0, void 0, function* () {
+let buildLineLogFromGitHistory = (gitRoot, path, logOptions) => __awaiter(void 0, void 0, void 0, function* () {
     let log = new linelog_1.LineLog();
-    let options = Object.assign(Object.assign({}, kDefaultLogOptions), { startingCommit });
+    let options = Object.assign(Object.assign({}, kDefaultLogOptions), (logOptions || {}));
     let history = yield logFile(gitRoot, path, options);
-    if (history.length === 0) {
+    if (history.length === 0 && !(logOptions === null || logOptions === void 0 ? void 0 : logOptions.firstParent)) {
         // Sometimes the history is empty with --follow and --first-parent.
-        // Likely a bug in git. For now let's just workaround it by logging
-        // again.
+        // Likely a bug in git. For now let's just workaround it by removing
+        // --first-parent if the callsite does not explicitly set it.
         options.firstParent = false;
-        options.followRenames = true;
-        console.log("try again 1");
-        history = yield logFile(gitRoot, path, options);
-    }
-    if (history.length === 0) {
-        // I don't know if this can happen. But let's try disabling
-        // followRenames.
-        options.firstParent = true;
-        options.followRenames = false;
-        console.log("try again 2");
-        history = yield logFile(gitRoot, path, options);
-    }
-    if (history.length === 0) {
-        // I don't know if this can happen. But let's try the default `git log`
-        // options.
-        options.firstParent = false;
-        options.followRenames = false;
-        console.log("try again 3");
         history = yield logFile(gitRoot, path, options);
     }
     let reader = new GitObjectReader(gitRoot);
     try {
         for (const { commit, path } of history.reverse()) {
-            let text = yield reader.catFile(commit, path);
-            let commitInfo = yield reader.getCommit(commit);
-            let info = {
-                commit: commitInfo,
-                path,
-            };
-            log.recordText(text, commitInfo.timestamp * 1000, info);
+            try {
+                let text = yield reader.catFile(commit, path);
+                let commitInfo = yield reader.getCommit(commit);
+                let info = {
+                    commit: commitInfo,
+                    path,
+                };
+                log.recordText(text, commitInfo.timestamp * 1000, info);
+            }
+            catch (_a) {
+                // Ignore missing objects.
+                continue;
+            }
         }
     }
     finally {
@@ -285,22 +279,22 @@ let buildLineLogFromGitHistory = (gitRoot, path, startingCommit = null) => __awa
 exports.buildLineLogFromGitHistory = buildLineLogFromGitHistory;
 // Run git process capture its output.
 let runGit = (args, options = null) => __awaiter(void 0, void 0, void 0, function* () {
-    var e_1, _a;
+    var e_1, _b;
     let opts = options || {};
     opts.stdio = ["ignore", "pipe", "ignore"];
     let git = child_process_1.spawn("git", args, opts);
     let data = "";
     if (git.stdout !== null) {
         try {
-            for (var _b = __asyncValues(git.stdout), _c; _c = yield _b.next(), !_c.done;) {
-                const chunk = _c.value;
+            for (var _c = __asyncValues(git.stdout), _d; _d = yield _c.next(), !_d.done;) {
+                const chunk = _d.value;
                 data += chunk;
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
         finally {
             try {
-                if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+                if (_d && !_d.done && (_b = _c.return)) yield _b.call(_c);
             }
             finally { if (e_1) throw e_1.error; }
         }
