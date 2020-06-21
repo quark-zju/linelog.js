@@ -229,11 +229,13 @@ class GitObjectReader {
 
     private autoCleanUp() {
         if (this.process !== null) {
-            if (Date.now() - this.mtime < 1200) {
-                this.scheduleAutoCleanUp();
-            } else {
-                this.cleanUp();
-            }
+            this.mutex.runExclusive(async () => {
+                if (Date.now() - this.mtime < 1100) {
+                    this.scheduleAutoCleanUp();
+                } else {
+                    this.cleanUp();
+                }
+            });
         }
     }
 
