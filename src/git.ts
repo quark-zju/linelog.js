@@ -45,15 +45,14 @@ interface CommitPathInfo {
 }
 
 interface LogOptions {
-    followRenames: boolean | null;
-    firstParent: boolean | null;
-    startingCommit: string | null;
+    followRenames?: boolean;
+    firstParent?: boolean;
+    startingCommit?: string;
 }
 
 const kDefaultLogOptions: LogOptions = {
     followRenames: true,
     firstParent: true,
-    startingCommit: null,
 };
 
 // Log history of a file.
@@ -248,16 +247,15 @@ interface WithProcessCallback<T> {
 }
 
 // Import Git history of a file to a LineLog.
-let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingCommit: null | string = null): Promise<LineLog> => {
+let buildLineLogFromGitHistory = async (gitRoot: string, path: string, logOptions?: LogOptions): Promise<LineLog> => {
     let log = new LineLog();
-    let options = { ...kDefaultLogOptions, startingCommit };
+    let options = { ...kDefaultLogOptions, ...(logOptions || {}) };
     let history = await logFile(gitRoot, path, options);
-    if (history.length === 0) {
+    if (history.length === 0 && !logOptions?.firstParent) {
         // Sometimes the history is empty with --follow and --first-parent.
-        // Likely a bug in git. For now let's just workaround it by logging
-        // again.
+        // Likely a bug in git. For now let's just workaround it by removing
+        // --first-parent if the callsite does not explicitly set it.
         options.firstParent = false;
-        options.followRenames = true;
         history = await logFile(gitRoot, path, options);
     }
     let reader = new GitObjectReader(gitRoot);
@@ -312,5 +310,6 @@ export {
     kDefaultLogOptions,
     CommitPathInfo,
     CommitInfo,
-    GitObjectReader
+    GitObjectReader,
+    LogOptions,
 };

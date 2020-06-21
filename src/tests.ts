@@ -164,7 +164,11 @@ if (!process.env.GITHUB_WORKFLOW) {
         });
 
         it('imports older files', async () => {
-            let a = await git.buildLineLogFromGitHistory(root, "fixtures/a", "a9ad1ca55280cea0f1109899d37d0cbb9b3efc1e");
+            let a = await git.buildLineLogFromGitHistory(
+                root,
+                "fixtures/a",
+                { startingCommit: "a9ad1ca55280cea0f1109899d37d0cbb9b3efc1e" },
+            );
             assert.equal(a.content, "3\n6\n7\n8\n");
             a.checkOut(a.maxRev, 0);
             assert.equal(a.content, "3\n4\n5\n6\n7\n7\n8\n");
