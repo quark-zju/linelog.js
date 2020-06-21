@@ -87,12 +87,18 @@ let logFile = async (gitRoot: string, path: string, options: LogOptions = kDefau
     for (const line of logOutput.split(/\r?\n/)) {
         switch (state as State) {
             case State.COMMIT:
-                commit = line;
-                state = State.PATH;
+                if (line.length === 40) {
+                    commit = line;
+                    state = State.PATH;
+                }
                 break;
             case State.PATH:
-                result.push({ commit, path: line });
-                state = State.NEWLINE;
+                if (line.length > 0) {
+                    result.push({ commit, path: line });
+                    state = State.NEWLINE;
+                } else {
+                    state = State.COMMIT;
+                }
                 break;
             case State.NEWLINE:
                 if (line === "") {
@@ -252,35 +258,24 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingC
         // again.
         options.firstParent = false;
         options.followRenames = true;
-        console.log("try again 1");
-        history = await logFile(gitRoot, path, options);
-    }
-    if (history.length === 0) {
-        // I don't know if this can happen. But let's try disabling
-        // followRenames.
-        options.firstParent = true;
-        options.followRenames = false;
-        console.log("try again 2");
-        history = await logFile(gitRoot, path, options);
-    }
-    if (history.length === 0) {
-        // I don't know if this can happen. But let's try the default `git log`
-        // options.
-        options.firstParent = false;
-        options.followRenames = false;
-        console.log("try again 3");
         history = await logFile(gitRoot, path, options);
     }
     let reader = new GitObjectReader(gitRoot);
     try {
         for (const { commit, path } of history.reverse()) {
-            let text = await reader.catFile(commit, path);
-            let commitInfo = await reader.getCommit(commit);
-            let info: CommitPathInfo = {
-                commit: commitInfo,
-                path,
-            };
-            log.recordText(text, commitInfo.timestamp * 1000, info);
+            try {
+                let text = await reader.catFile(commit, path);
+                let commitInfo = await reader.getCommit(commit);
+
+                let info: CommitPathInfo = {
+                    commit: commitInfo,
+                    path,
+                };
+                log.recordText(text, commitInfo.timestamp * 1000, info);
+            } catch {
+                // Ignore missing objects.
+                continue;
+            }
         }
     } finally {
         reader.cleanUp();
