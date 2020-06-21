@@ -247,20 +247,6 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, startingC
     return log;
 };
 
-// Make node.js stream.write easier to use.
-let write = async (stream: Writable, data: string): Promise<void> => {
-    if (!stream.write(data)) {
-        if (stream.destroyed) {
-            throw new Error('premature close');
-        }
-        await Promise.race([
-            once(stream, 'drain').then(),
-            once(stream, 'close')
-                .then(() => Promise.reject(new Error('premature close')))
-        ]);
-    }
-};
-
 // Run git process capture its output.
 let runGit = async (args: string[]): Promise<string> => {
     let git = spawn("git", args, { stdio: ["ignore", "pipe", "ignore"] });
@@ -279,4 +265,4 @@ let runGit = async (args: string[]): Promise<string> => {
     }
 };
 
-export { buildLineLogFromGitHistory, CommitPathInfo, CommitInfo, GitObjectReader };
+export { buildLineLogFromGitHistory, logFile, runGit, CommitPathInfo, CommitInfo, GitObjectReader };
