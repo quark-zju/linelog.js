@@ -1,1 +1,4 @@
 `linelog.js` provides a data structure useful for tracking changes to a text file over time.
+
+It is relatively compact because it only contains deltas without full text.
+It supports efficient "blame" operation, as doing a "blame" is the same as doing a "checkout".
