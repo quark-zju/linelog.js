@@ -23,14 +23,14 @@ SOFTWARE.
 */
 
 import { LineLog } from './linelog';
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { Writable, Readable } from 'stream';
+import { spawn, ChildProcess, SpawnOptions } from 'node:child_process';
+import { Writable, Readable } from 'node:stream';
 import { Mutex } from 'async-mutex';
 
 interface CommitPath {
     commit: string,
     path: string,
-};
+}
 
 interface CommitInfo {
     commit: string,
@@ -56,7 +56,7 @@ const kDefaultLogOptions: LogOptions = {
 };
 
 // Log history of a file.
-let logFile = async (gitRoot: string, path: string, options: LogOptions = kDefaultLogOptions): Promise<CommitPath[]> => {
+const logFile = async (gitRoot: string, path: string, options: LogOptions = kDefaultLogOptions): Promise<CommitPath[]> => {
     let args = [
         `--git-dir=${gitRoot}/.git`,
         "log",
@@ -74,14 +74,14 @@ let logFile = async (gitRoot: string, path: string, options: LogOptions = kDefau
         args.push(options.startingCommit);
     }
     args = args.concat(["--", path]);
-    let logOutput = await runGit(args);
-    let result = [];
+    const logOutput = await runGit(args);
+    const result = [];
     enum State {
         COMMIT = 0,
         PATH = 1,
         NEWLINE = 2,
     }
-    let commit: string = "";
+    let commit = "";
     let state: State = State.COMMIT;
     for (const line of logOutput.split(/\r?\n/)) {
         switch (state as State) {
@@ -126,7 +126,7 @@ class GitObjectReader {
     // Stop background process.
     cleanUp() {
         if (this.process) {
-            let process = this.process;
+            const process = this.process;
             process.stdin?.end();
             process.kill();
             this.process = null;
@@ -136,33 +136,33 @@ class GitObjectReader {
     async readObject(spec: string, expectedType: string | null = null): Promise<Buffer> {
         return this.withProcess(async (proc) => {
             if (proc.stdout === null || proc.stdin === null) { throw new Error("stdout and stdin should not be null"); }
-            let stdout: Readable = proc.stdout;
-            let stdin: Writable = proc.stdin;
+            const stdout: Readable = proc.stdout;
+            const stdin: Writable = proc.stdin;
             return await new Promise((rawResolve, rawReject) => {
-                let finalize = () => {
+                const finalize = () => {
                     stdout.removeAllListeners('data');
                     stdout.removeAllListeners('close');
                 };
-                let resolve = (data: Buffer) => { finalize(); rawResolve(data); };
-                let reject = (err: Error) => { finalize(); rawReject(err); };
+                const resolve = (data: Buffer) => { finalize(); rawResolve(data); };
+                const reject = (err: Error) => { finalize(); rawReject(err); };
                 let buf = Buffer.alloc(0);
                 stdout.on('data', (chunk) => {
                     buf = Buffer.concat([buf, chunk]);
-                    let newLinePos = buf.indexOf("\n");
+                    const newLinePos = buf.indexOf("\n");
                     if (newLinePos < 0) {
                         // always wait for reading the first line
                         return;
                     }
-                    let firstLine = buf.slice(0, newLinePos).toString();
+                    const firstLine = buf.slice(0, newLinePos).toString();
                     if (firstLine.indexOf("missing") >= 0) {
                         return reject(new Error(`object ${spec} is missing (${firstLine})`));
                     }
-                    let [oid, type, lenStr] = firstLine.split(" ");
+                    const [, type, lenStr] = firstLine.split(" ");
                     if (expectedType && expectedType !== type) {
                         return reject(new Error(`object ${spec} has type ${type}, which does not match expected ${expectedType}`));
                     }
-                    let len = parseInt(lenStr);
-                    let expectedLen = len + newLinePos + 1 /* LF */;
+                    const len = parseInt(lenStr);
+                    const expectedLen = len + newLinePos + 1 /* LF */;
                     if (buf.length >= expectedLen + 1 /* LF */) {
                         return resolve(buf.slice(newLinePos + 1, expectedLen));
                     }
@@ -175,8 +175,8 @@ class GitObjectReader {
     }
 
     async getCommit(commit: string): Promise<CommitInfo> {
-        let buf = await this.readObject(commit, "commit");
-        let text = buf.toString();
+        const buf = await this.readObject(commit, "commit");
+        const text = buf.toString();
         let author = "unknown";
         let message = "";
         let timestamp = 0;
@@ -189,7 +189,7 @@ class GitObjectReader {
             if (state === State.HEADER) {
                 if (line.startsWith("author ")) {
                     // ex. "author Jun Wu <quark@example.com> 1591595522 -0700"
-                    let parts = line.split(" ");
+                    const parts = line.split(" ");
                     timestamp = parseInt(parts[parts.length - 2]);
                     author = parts.slice(1, parts.length - 2).join(" ");
                 } else if (line.startsWith("committer ")) {
@@ -208,7 +208,7 @@ class GitObjectReader {
     }
 
     async catFile(commit: string, path: string): Promise<string> {
-        let buf = await this.readObject(`${commit}:${path}`, "blob");
+        const buf = await this.readObject(`${commit}:${path}`, "blob");
         return buf.toString();
     }
 
@@ -249,9 +249,9 @@ interface WithProcessCallback<T> {
 }
 
 // Import Git history of a file to a LineLog.
-let buildLineLogFromGitHistory = async (gitRoot: string, path: string, logOptions?: LogOptions): Promise<LineLog> => {
-    let log = new LineLog();
-    let options = { ...kDefaultLogOptions, ...(logOptions || {}) };
+const buildLineLogFromGitHistory = async (gitRoot: string, path: string, logOptions?: LogOptions): Promise<LineLog> => {
+    const log = new LineLog();
+    const options = { ...kDefaultLogOptions, ...(logOptions || {}) };
     let history = await logFile(gitRoot, path, options);
     if (history.length === 0 && !logOptions?.firstParent) {
         // Sometimes the history is empty with --follow and --first-parent.
@@ -260,14 +260,14 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, logOption
         options.firstParent = false;
         history = await logFile(gitRoot, path, options);
     }
-    let reader = new GitObjectReader(gitRoot);
+    const reader = new GitObjectReader(gitRoot);
     try {
         for (const { commit, path } of history.reverse()) {
             try {
-                let text = await reader.catFile(commit, path);
-                let commitInfo = await reader.getCommit(commit);
+                const text = await reader.catFile(commit, path);
+                const commitInfo = await reader.getCommit(commit);
 
-                let info: CommitPathInfo = {
+                const info: CommitPathInfo = {
                     commit: commitInfo,
                     path,
                 };
@@ -284,10 +284,10 @@ let buildLineLogFromGitHistory = async (gitRoot: string, path: string, logOption
 };
 
 // Run git process capture its output.
-let runGit = async (args: string[], options: SpawnOptions | null = null): Promise<string> => {
-    let opts = options || {};
+const runGit = async (args: string[], options: SpawnOptions | null = null): Promise<string> => {
+    const opts = options || {};
     opts.stdio = ["ignore", "pipe", "ignore"];
-    let git = spawn("git", args, opts);
+    const git = spawn("git", args, opts);
     let data = "";
     if (git.stdout !== null) {
         for await (const chunk of git.stdout) {

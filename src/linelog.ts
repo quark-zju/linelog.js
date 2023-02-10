@@ -22,12 +22,11 @@ SOFTWARE.
 
 */
 
-import * as assert from 'assert';
-import * as zlib from 'zlib';
-import * as diff_match_patch from 'diff-match-patch';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { diff_match_patch } from 'diff-match-patch';
 import * as git from './git';
 
-let dmp = new diff_match_patch.diff_match_patch;
+const dmp = new diff_match_patch;
 
 enum Op {
     J = 0,
@@ -113,10 +112,10 @@ class LineLog {
         assert(a1 <= a2, "illegal chunk (a1 < a2)");
         assert(a2 <= this.lines.length, "out of bound a2 (forgot checkOut?)");
 
-        let start = this.code.length;
-        let a1Pc = this.lines[a1].pc;
+        const start = this.code.length;
+        const a1Pc = this.lines[a1].pc;
         if (lines.length > 0) {
-            let b2Pc = start + lines.length + 1;
+            const b2Pc = start + lines.length + 1;
             this.code.push({ op: Op.JL, rev, pc: b2Pc });
             lines.forEach((line) => {
                 this.code.push({ op: Op.LINE, rev, data: line });
@@ -124,7 +123,7 @@ class LineLog {
             assert(b2Pc === this.code.length, "bug: wrong pc");
         }
         if (a1 < a2) {
-            let a2Pc = this.lines[a2 - 1].pc + 1;
+            const a2Pc = this.lines[a2 - 1].pc + 1;
             this.code.push({ op: Op.JGE, rev, pc: a2Pc });
         }
         this.lines[a1].pc = this.code.length;
@@ -135,7 +134,7 @@ class LineLog {
         }
         this.code[a1Pc] = { op: Op.J, pc: start };
 
-        let newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i, deleted: false }; });
+        const newLines = lines.map((s, i) => { return { data: s, rev, pc: start + 1 + i, deleted: false }; });
         this.lines.splice(a1, a2 - a1, ...newLines);
         if (rev > this.maxRev) {
             this.maxRev = rev;
@@ -145,13 +144,13 @@ class LineLog {
     }
 
     private execute(startRev: Rev, endRev: Rev, present: { [pc: number]: boolean } | null = null): LineInfo[] {
-        let rev = endRev;
-        let lines: LineInfo[] = [];
+        const rev = endRev;
+        const lines: LineInfo[] = [];
         let pc = 0;
         let patience = this.code.length * 2;
-        let deleted = present === null ? ((pc: Pc) => false) : (pc: Pc) => !present[pc];
+        const deleted = present === null ? (() => false) : (pc: Pc) => !present[pc];
         while (patience > 0) {
-            let code = this.code[pc];
+            const code = this.code[pc];
             switch (code.op) {
                 case Op.END:
                     lines.push({ data: "", rev: 0, pc, deleted: deleted(pc) });
@@ -200,7 +199,7 @@ class LineLog {
         let lines = this.execute(rev, rev);
         if (start !== null) {
             // Checkout a range, including deleted revs.
-            let present: { [key: number]: boolean } = {};
+            const present: { [key: number]: boolean } = {};
             lines.forEach((l) => { present[l.pc] = true; });
 
             // Go through all lines again. But do not skip chunks.
@@ -216,12 +215,12 @@ class LineLog {
     }
 
     public export(): Buffer {
-        return zlib.gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap, extraMap: this.extraMap }));
+        return gzipSync(JSON.stringify({ code: this.code, tsMap: this.tsMap, extraMap: this.extraMap }));
     }
 
     public import(buf: Buffer) {
-        let obj = JSON.parse(zlib.gunzipSync(buf).toString());
-        let { code, tsMap, extraMap } = obj;
+        const obj = JSON.parse(gunzipSync(buf).toString());
+        const { code, tsMap, extraMap } = obj;
         this.code = code;
         this.tsMap = tsMap || {};
         this.extraMap = extraMap || {};
@@ -232,25 +231,25 @@ class LineLog {
     }
 
     public recordText(text: string, timestamp: null | number = null, extra: null | object = null): Rev {
-        let a = this.content;
-        let b = text;
+        const a = this.content;
+        const b = text;
         if (a === b) {
             return this.maxRev;
         }
-        let lines = splitLines(b);
+        const lines = splitLines(b);
         this.checkOut(this.maxRev);
-        let blocks = diffLines(a, b);
-        let ts = timestamp || Date.now();
+        const blocks = diffLines(a, b);
+        const ts = timestamp || Date.now();
 
         if (blocks.length === 1) {
-            let rev = this.maxRev;
-            let [a1, a2, b1, b2] = blocks[0];
+            const rev = this.maxRev;
+            const [a1, a2, b1, b2] = blocks[0];
             if (a2 - a1 === 1 && b2 - b1 === 1 && this.lines[a1].rev === rev && this.lines.filter((l) => l.rev === rev).length === 1) {
                 // Trivial change. Update directly without keeping the old history.
                 this.tsMap[rev] = ts;
-                let code = this.code[this.lines[a1].pc];
+                const code = this.code[this.lines[a1].pc];
                 if (code.op === Op.LINE) {
-                    let newLine = lines[b1];
+                    const newLine = lines[b1];
                     code.data = newLine;
                     this.lines[a1].data = newLine;
                 } else {
@@ -262,7 +261,7 @@ class LineLog {
         }
 
         // Non-trivial change.
-        let rev = this.maxRev + 1;
+        const rev = this.maxRev + 1;
         this.tsMap[rev] = ts;
         if (extra) {
             this.extraMap[rev] = extra;
@@ -280,7 +279,7 @@ class LineLog {
         if (i >= this.lines.length - 1) {
             return 0;
         } else {
-            let ts = this.tsMap[this.lines[i].rev];
+            const ts = this.tsMap[this.lines[i].rev];
             return ts;
         }
     }
@@ -295,10 +294,10 @@ class LineLog {
 }
 
 function diffLines(a: string, b: string): [LineIdx, LineIdx, LineIdx, LineIdx][] {
-    let { chars1, chars2, lineArray } = dmp.diff_linesToChars_(a, b);
-    let blocks: [LineIdx, LineIdx, LineIdx, LineIdx][] = [];
+    const { chars1, chars2 } = dmp.diff_linesToChars_(a, b);
+    const blocks: [LineIdx, LineIdx, LineIdx, LineIdx][] = [];
     let a1 = 0, a2 = 0, b1 = 0, b2 = 0;
-    let push = (len: number) => {
+    const push = (len: number) => {
         if (a1 !== a2 || b1 !== b2) {
             blocks.push([a1, a2, b1, b2]);
         }
@@ -306,8 +305,8 @@ function diffLines(a: string, b: string): [LineIdx, LineIdx, LineIdx, LineIdx][]
         b1 = b2 = b2 + len;
     };
     dmp.diff_main(chars1, chars2, false).forEach((x) => {
-        let [op, chars] = x;
-        let len = chars.length;
+        const [op, chars] = x;
+        const len = chars.length;
         if (op === 0) {
             push(len);
         }
@@ -325,7 +324,7 @@ function diffLines(a: string, b: string): [LineIdx, LineIdx, LineIdx, LineIdx][]
 function splitLines(s: string): string[] {
     let pos = 0;
     let nextPos = 0;
-    let result = [];
+    const result = [];
     while (pos < s.length) {
         nextPos = s.indexOf('\n', pos);
         if (nextPos === -1) {
@@ -335,6 +334,12 @@ function splitLines(s: string): string[] {
         pos = nextPos + 1;
     }
     return result;
-};
+}
 
-export { git, LineLog };
+function assert(condition: boolean, message: string) {
+    if (!condition) {
+        throw new Error(message);
+    }
+}
+
+export { LineLog, git };
